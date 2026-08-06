@@ -1,0 +1,12 @@
+{
+  "name": "pe-attendance-globaldispomedika",
+  "version": "1.0.0",
+  "description": "Sistem Absensi Physical Exercise PT Global Dispomedika (Vercel + Google Sheets)",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve ."
+  },
+  "keywords": ["attendance", "sports", "vercel", "google-sheets"],
+  "author": "PT Global Dispomedika",
+  "license": "MIT"
+}

@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Sistem Absensi PE - PT Global Dispomedika</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- LOADING OVERLAY -->
+  <div id="spinner-overlay" class="spinner-overlay">
+    <div class="spinner"></div>
+    <div id="spinner-text" class="spinner-text">Memproses data...</div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- IMAGE LIGHTBOX MODAL -->
+  <div id="image-modal" class="modal-overlay" onclick="closeImageModal()">
+    <div class="modal-container" onclick="event.stopPropagation()">
+      <button class="modal-close" onclick="closeImageModal()">✕ Close</button>
+      <img id="modal-image-view" class="modal-img" src="" alt="Bukti Olahraga">
+    </div>
+  </div>
+
+  <!-- API URL CONFIG MODAL -->
+  <div id="config-modal" class="modal-overlay">
+    <div class="modal-container" onclick="event.stopPropagation()" style="max-width: 500px; width: 100%;">
+      <h3 style="margin-bottom: 1rem;">⚙️ Konfigurasi URL Server API</h3>
+      <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.5rem; line-height: 1.4;">
+        Masukkan URL Web App Google Apps Script (`/exec`) Anda untuk menghubungkan antarmuka Vercel ini dengan database Google Sheets.
+      </p>
+      <div class="form-group">
+        <label for="config-api-url">URL Apps Script API *</label>
+        <input type="text" id="config-api-url" placeholder="https://script.google.com/macros/s/.../exec">
+      </div>
+      <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem;">
+        <button class="btn btn-primary" onclick="saveApiUrlConfig()">Simpan & Hubungkan</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-container">
+    
+    <!-- SIDEBAR NAVIGATION -->
+    <aside class="sidebar">
+      <div>
+        <div class="brand-section">
+          <div class="brand-logo">GD</div>
+          <div class="brand-info">
+            <h2>Dispomedika</h2>
+            <span>PE ATTENDANCE</span>
+          </div>
+        </div>
+        <ul class="nav-list">
+          <li class="nav-item active" onclick="switchPage('home')">
+            <a href="javascript:void(0)">
+              <svg class="nav-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+              Beranda
+            </a>
+          </li>
+          <li class="nav-item" onclick="switchPage('absen')">
+            <a href="javascript:void(0)">
+              <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+              Absen Mandiri
+            </a>
+          </li>
+          <li class="nav-item" onclick="switchPage('riwayat')">
+            <a href="javascript:void(0)">
+              <svg class="nav-icon" viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+              Cek Riwayat
+            </a>
+          </li>
+          <li class="nav-item" onclick="switchPage('admin')">
+            <a href="javascript:void(0)">
+              <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+              Portal Admin
+            </a>
+          </li>
+        </ul>
+      </div>
+      
+      <div class="sidebar-footer">
+        <button class="theme-toggle-btn" onclick="openConfigModal()" style="margin-bottom: 0.5rem;">
+          ⚙️ Set Server API
+        </button>
+        <button class="theme-toggle-btn" onclick="toggleTheme()">
+          <span id="theme-toggle-icon">☀️ Light Mode</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="main-content">
+      
+      <!-- TOP HEADER -->
+      <header class="header-panel">
+        <div class="header-title">
+          <h1 id="page-title-text">Beranda Program PE</h1>
+          <p id="page-subtitle-text">PT Global Dispomedika - Budaya Hidup Sehat & Bugar</p>
+        </div>
+        <div class="date-badge">
+          📅 <span id="current-date-text">Memuat Tanggal...</span>
+        </div>
+      </header>
+
+      <!-- PAGE: HOME -->
+      <section id="page-home" class="page-section active">
+        <div class="alert-banner">
+          <div class="alert-icon">⚠️</div>
+          <div class="alert-content">
+            <h4>Catatan Sanksi Ketidakpatuhan (SOP Perusahaan)</h4>
+            <p>Bagi yang tidak melaksanakan Program Kegiatan Physical Exercise (PE) minimal 1x dalam seminggu, akan dikenakan sanksi sesuai dengan ketentuan Perusahaan yaitu <strong>pemotongan uang tunjangan sebesar 1 hari per kejadian</strong>.</p>
+          </div>
+        </div>
+
+        <div class="home-grid">
+          <div class="card">
+            <div class="card-title">🏃 Ketentuan Absensi Physical Exercise (PE)</div>
+            <ul class="guide-list">
+              <li class="guide-item">
+                <div class="guide-number">1</div>
+                <div class="guide-text">
+                  <h4>Kewajiban Olahraga</h4>
+                  <p>Seluruh karyawan wajib melakukan aktivitas olahraga (Physical Exercise) minimal <strong>1 kali dalam satu minggu</strong>.</p>
+                </div>
+              </li>
+              <li class="guide-item">
+                <div class="guide-number">2</div>
+                <div class="guide-text">
+                  <h4>Aturan Karyawan Pusat (HO) - Badminton</h4>
+                  <p>Untuk Badminton, absensi dilakukan secara manual/di lapangan dengan melampirkan foto diri sedang bermain di lapangan badminton.</p>
+                </div>
+              </li>
+              <li class="guide-item">
+                <div class="guide-number">3</div>
+                <div class="guide-text">
+                  <h4>Aturan Karyawan Pusat (HO) - Pingpong, Jogging, Sepeda</h4>
+                  <p>Absensi melampirkan <strong>foto saat olahraga</strong>. Khusus untuk olahraga **Jogging** dan **Sepeda**, wajib juga melampirkan screenshot dari aplikasi **Strava**.</p>
+                </div>
+              </li>
+              <li class="guide-item">
+                <div class="guide-number">4</div>
+                <div class="guide-text">
+                  <h4>Validasi & Verifikasi</h4>
+                  <p>Semua absensi yang disubmit akan berstatus PENDING hingga divalidasi dan disetujui oleh admin HRD.</p>
+                </div>
+              </li>
+            </ul>
+          </div>
+          
+          <div class="card">
+            <div class="card-title">⚡ Pintasan Halaman</div>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem; line-height: 1.4;">Akses cepat untuk melakukan absensi mandiri olahraga Anda minggu ini atau periksa status sanksi Anda.</p>
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+              <button class="btn btn-primary" onclick="switchPage('absen')">Kirim Absen PE Sekarang</button>
+              <button class="btn btn-secondary" onclick="switchPage('riwayat')">Cek Riwayat & Sanksi</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE: FORM ABSEN -->
+      <section id="page-absen" class="page-section">
+        <div class="card" style="max-width: 800px; margin: 0 auto; width: 100%;">
+          <div class="card-title">📝 Form Pengajuan Absensi PE</div>
+          
+          <form id="attendance-form" onsubmit="handleFormSubmit(event)">
+            
+            <div class="form-row">
+              <!-- NIK Karyawan -->
+              <div class="form-group">
+                <label for="form-nik">Nomor Induk Karyawan (NIK) *</label>
+                <div class="suggestions-container">
+                  <input type="text" id="form-nik" placeholder="Ketik NIK, Nama, atau Jabatan..." required oninput="lookupEmployee(this.value)" onfocus="lookupEmployee(this.value)" autocomplete="off">
+                  <div id="nik-suggestions" class="suggestions-list"></div>
+                </div>
+                <div id="employee-badge" class="user-lookup-badge"></div>
+              </div>
+              
+              <!-- Cabang Olahraga -->
+              <div class="form-group">
+                <label for="form-cabor">Pilih Cabang Olahraga *</label>
+                <select id="form-cabor" required onchange="handleCaborChange(this.value)">
+                  <option value="" disabled selected>-- Pilih Cabor --</option>
+                  <option value="Badminton">Badminton</option>
+                  <option value="Pingpong">Pingpong</option>
+                  <option value="Jogging">Jogging</option>
+                  <option value="Bersepeda">Bersepeda</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <!-- Tanggal Kegiatan -->
+              <div class="form-group">
+                <label for="form-tanggal">Tanggal Olahraga *</label>
+                <input type="date" id="form-tanggal" required>
+              </div>
+              
+              <!-- Placeholder for conditional field (Partner/Location) -->
+              <div class="form-group" id="cabor-meta-container" style="display: none;">
+                <label id="cabor-meta-label" for="form-meta">Detail Tambahan</label>
+                <input type="text" id="form-meta" placeholder="">
+              </div>
+            </div>
+
+            <!-- Conditional fields for Strava (Jogging & Cycling) -->
+            <div id="strava-fields" style="display: none;">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="form-jarak">Jarak Tempuh (Kilometer/KM) *</label>
+                  <input type="number" id="form-jarak" step="0.01" min="0.1" placeholder="Contoh: 5.25">
+                </div>
+                <div class="form-group">
+                  <label for="form-durasi">Durasi Kegiatan (Menit) *</label>
+                  <input type="number" id="form-durasi" min="1" placeholder="Contoh: 45">
+                </div>
+              </div>
+            </div>
+
+            <!-- Upload Main Photo Proof -->
+            <div class="form-group">
+              <label id="main-photo-label">Foto Bukti Kegiatan PE *</label>
+              <div class="file-upload-wrapper" id="photo-upload-container">
+                <svg class="file-upload-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                <div class="upload-text">
+                  <h5>Klik atau Seret Foto Ke Sini</h5>
+                  <p>Maksimal ukuran file 10MB (JPEG, PNG)</p>
+                </div>
+                <input type="file" id="form-photo" accept="image/*" required onchange="previewImage(this, 'photo-preview')">
+              </div>
+              <img id="photo-preview" class="image-preview" alt="Pratinjau Foto Diri">
+            </div>
+
+            <!-- Upload Strava Screenshot (Conditional) -->
+            <div class="form-group" id="strava-screenshot-group" style="display: none;">
+              <label>Screenshot Bukti Strava *</label>
+              <div class="file-upload-wrapper">
+                <svg class="file-upload-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2a4 4 0 00-4-4H3m18 0h-2a4 4 0 00-4 4v2m-3-12h.01M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                <div class="upload-text">
+                  <h5>Klik atau Seret Screenshot Strava Ke Sini</h5>
+                  <p>Maksimal ukuran file 10MB (JPEG, PNG)</p>
+                </div>
+                <input type="file" id="form-strava-proof" accept="image/*" onchange="previewImage(this, 'strava-preview')">
+              </div>
+              <img id="strava-preview" class="image-preview" alt="Pratinjau Screenshot Strava">
+            </div>
+
+            <div id="validation-note-box" class="form-note" style="display: none;"></div>
+
+            <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem;">
+              <button type="button" class="btn btn-secondary" onclick="resetForm()">Reset</button>
+              <button type="submit" id="submit-btn" class="btn btn-primary" disabled>Kirim Absensi</button>
+            </div>
+
+          </form>
+        </div>
+      </section>
+
+      <!-- PAGE: CHECK RIWAYAT -->
+      <section id="page-riwayat" class="page-section">
+        
+        <!-- Admin Gate for Riwayat -->
+        <div id="riwayat-gate" class="card admin-gate-card">
+          <div class="admin-gate-icon">
+            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+          </div>
+          <h3>Akses Terbatas Admin</h3>
+          <p style="color: var(--text-secondary); font-size: 0.9rem;">Pemeriksaan riwayat absensi & sanksi karyawan hanya dapat dibuka oleh Admin. Silakan masukkan passcode admin.</p>
+          <div class="form-group" style="text-align: left;">
+            <label for="riwayat-passcode">Passcode Admin</label>
+            <input type="password" id="riwayat-passcode" placeholder="Masukkan passcode admin">
+          </div>
+          <button class="btn btn-primary" onclick="loginRiwayatAdmin()">Verifikasi Passcode</button>
+        </div>
+
+        <!-- Riwayat Workspace -->
+        <div id="riwayat-workspace" style="display: none;">
+          <div class="card history-search-card">
+            <div class="card-title">🔍 Cek Riwayat & Sanksi Karyawan</div>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.9rem;">Masukkan NIK karyawan untuk memeriksa riwayat absensi olahraga yang telah dikirim beserta status kepatuhannya.</p>
+            <div class="form-group">
+              <label for="search-nik">Nomor Induk Karyawan (NIK)</label>
+              <div style="display: flex; gap: 1rem; align-items: flex-start;">
+                <div class="suggestions-container" style="flex-grow: 1;">
+                  <input type="text" id="search-nik" placeholder="Ketik NIK, Nama, atau Jabatan..." oninput="lookupEmployeeSearch(this.value)" onfocus="lookupEmployeeSearch(this.value)" autocomplete="off">
+                  <div id="search-nik-suggestions" class="suggestions-list"></div>
+                </div>
+                <button class="btn btn-primary" onclick="searchHistory()" style="padding: 0.85rem 1.75rem;">Cari</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Compliance Stats Dashboard for Employee -->
+          <div id="employee-stats-container" style="display: none; max-width: 800px; margin: 0 auto; width: 100%;">
+            <div class="quick-stats">
+              <div class="stat-card">
+                <div class="stat-label">Total Pengajuan</div>
+                <div id="emp-stat-total" class="stat-value">0</div>
+              </div>
+              <div class="stat-card success">
+                <div class="stat-label">Disetujui (Approved)</div>
+                <div id="emp-stat-approved" class="stat-value">0</div>
+              </div>
+              <div class="stat-card warning">
+                <div class="stat-label">Menunggu (Pending)</div>
+                <div id="emp-stat-pending" class="stat-value">0</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Timeline container -->
+          <div id="history-results-container" style="display: none; max-width: 800px; margin: 0 auto; width: 100%;">
+            <h3 style="font-size: 1.25rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Garis Waktu Olahraga</h3>
+            <div id="history-timeline" class="timeline"></div>
+          </div>
+          
+          <div id="history-empty" style="display: none; text-align: center; color: var(--text-secondary); padding: 4rem 0;">
+            📭 Belum ada riwayat absensi untuk NIK ini.
+          </div>
+        </div>
+
+      </section>
+
+      <!-- PAGE: PORTAL ADMIN -->
+      <section id="page-admin" class="page-section">
+        
+        <!-- Passcode Gate -->
+        <div id="admin-gate" class="card admin-gate-card">
+          <div class="admin-gate-icon">
+            <svg fill="currentColor" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+          </div>
+          <h3>Masuk Portal Admin</h3>
+          <p style="color: var(--text-secondary); font-size: 0.9rem;">Halaman ini khusus untuk HRD / Admin verifikator. Masukkan passcode rahasia untuk melanjutkan.</p>
+          <div class="form-group" style="text-align: left;">
+            <label for="admin-passcode">Passcode Admin</label>
+            <input type="password" id="admin-passcode" placeholder="Masukkan passcode admin">
+          </div>
+          <button class="btn btn-primary" onclick="loginAdmin()">Verifikasi Passcode</button>
+        </div>
+
+        <!-- Admin Workspace -->
+        <div id="admin-workspace" style="display: none;">
+          
+          <!-- Admin Quick Stats -->
+          <div class="quick-stats" id="admin-quick-stats">
+            <div class="stat-card">
+              <div class="stat-label">Total Karyawan Aktif</div>
+              <div id="admin-stat-emp" class="stat-value">0</div>
+            </div>
+            <div class="stat-card warning">
+              <div class="stat-label">Butuh Verifikasi</div>
+              <div id="admin-stat-pending" class="stat-value">0</div>
+            </div>
+            <div class="stat-card success">
+              <div class="stat-label">Disetujui</div>
+              <div id="admin-stat-approved" class="stat-value">0</div>
+            </div>
+            <div class="stat-card danger">
+              <div class="stat-label">Sanksi Kepatuhan</div>
+              <div id="admin-stat-penalties" class="stat-value">0</div>
+            </div>
+          </div>
+
+          <!-- Admin Sub navigation -->
+          <div class="admin-tabs">
+            <div id="tab-btn-pending" class="admin-tab active" onclick="switchAdminTab('pending')">Persetujuan Absen</div>
+            <div id="tab-btn-compliance" class="admin-tab" onclick="switchAdminTab('compliance')">Kepatuhan & Sanksi</div>
+            <div id="tab-btn-directory" class="admin-tab" onclick="switchAdminTab('directory')">Data Karyawan</div>
+            <div id="tab-btn-logs" class="admin-tab" onclick="switchAdminTab('logs')">Semua Log Absensi</div>
+          </div>
+
+          <!-- SUB SECTION: PENDING PERSATUJUAN -->
+          <div id="sec-admin-pending" class="admin-sub-section active">
+            <h3 style="font-size: 1.25rem; margin-bottom: 1rem;">Menunggu Persetujuan HR/Admin</h3>
+            <div id="admin-pending-list" class="pending-grid"></div>
+            <div id="admin-pending-empty" style="display: none; text-align: center; color: var(--text-muted); padding: 4rem 0;">
+              🎉 Pekerjaan Anda beres! Tidak ada absensi yang menunggu persetujuan.
+            </div>
+          </div>
+
+          <!-- SUB SECTION: KEPATUHAN & SANKSI -->
+          <div id="sec-admin-compliance" class="admin-sub-section">
+            <div class="card">
+              <div class="card-title">🧮 Hitung Kepatuhan & Terapkan Potongan Tunjangan</div>
+              <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.9rem; line-height: 1.4;">
+                Sistem akan memindai seluruh karyawan aktif dan memeriksa apakah mereka telah melakukan olahraga minimal 1x pada minggu terpilih.
+                Jika belum ada olahraga yang <strong>Approved</strong>, sistem otomatis mencatatkan sanksi pemotongan uang tunjangan 1 hari.
+              </p>
+              
+              <div class="report-filter-row">
+                <div class="form-group" style="width: 150px; margin-bottom: 0;">
+                  <label for="compliance-year">Tahun</label>
+                  <select id="compliance-year">
+                    <option value="2026" selected>2026</option>
+                    <option value="2027">2027</option>
+                  </select>
+                </div>
+                <div class="form-group" style="width: 180px; margin-bottom: 0;">
+                  <label for="compliance-week">Minggu Ke (ISO Week)</label>
+                  <select id="compliance-week"></select>
+                </div>
+                <button class="btn btn-primary" onclick="runWeeklyCompliance()">Proses Kepatuhan</button>
+                <button class="btn btn-secondary" onclick="exportComplianceToCSV()">Ekspor Laporan (CSV)</button>
+              </div>
+            </div>
+
+            <!-- Compliance Results Card -->
+            <div class="card" id="compliance-results-card" style="display: none;">
+              <h3 style="font-size: 1.1rem; margin-bottom: 1rem;" id="compliance-results-title">Hasil Kepatuhan</h3>
+              <div class="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>NIK</th>
+                      <th>Nama Karyawan</th>
+                      <th>Jabatan</th>
+                      <th>Regional</th>
+                      <th>Cabang / Pusat</th>
+                      <th>Jumlah Approved PE</th>
+                      <th>Status Kepatuhan</th>
+                      <th>Potong Tunjangan (Hari)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="compliance-results-table"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- SUB SECTION: DIREKTORI KARYAWAN -->
+          <div id="sec-admin-directory" class="admin-sub-section">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <h3 style="font-size: 1.25rem;">Manajemen Karyawan PT Global Dispomedika</h3>
+              <button class="btn btn-primary" onclick="openAddEmployeeModal()">+ Tambah Karyawan</button>
+            </div>
+            
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>NIK</th>
+                    <th>Nama Lengkap</th>
+                    <th>Jabatan</th>
+                    <th>Regional</th>
+                    <th>Cabang / Pusat</th>
+                    <th>Status</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-employees-table"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- SUB SECTION: SEMUA LOG ABSENSI -->
+          <div id="sec-admin-logs" class="admin-sub-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; wrap: wrap; gap: 1rem;">
+              <h3 style="font-size: 1.25rem;">Seluruh Data Absensi PE</h3>
+              <button class="btn btn-secondary" onclick="exportAllLogsToCSV()">Ekspor Semua Log (CSV)</button>
+            </div>
+            
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Waktu Input</th>
+                    <th>NIK</th>
+                    <th>Nama</th>
+                    <th>Cabor</th>
+                    <th>Tgl Olahraga</th>
+                    <th>Detail Olahraga</th>
+                    <th>Bukti</th>
+                    <th>Status</th>
+                    <th>Verifikator</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-all-logs-table"></tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </section>
+      
+    </main>
+  </div>
+
+  <!-- MODAL EDIT/TAMBAH KARYAWAN -->
+  <div id="employee-modal" class="modal-overlay" onclick="closeEmployeeModal()">
+    <div class="modal-container" onclick="event.stopPropagation()" style="max-width: 500px; width: 100%;">
+      <button class="modal-close" onclick="closeEmployeeModal()">✕ Close</button>
+      <h3 id="employee-modal-title" style="margin-bottom: 1.5rem; font-size: 1.25rem;">Tambah Karyawan Baru</h3>
+      
+      <form id="employee-form" onsubmit="handleEmployeeFormSubmit(event)">
+        <div class="form-group">
+          <label for="emp-nik">NIK Karyawan *</label>
+          <input type="text" id="emp-nik" required placeholder="Contoh: GDM-006">
+        </div>
+        <div class="form-group">
+          <label for="emp-nama">Nama Lengkap *</label>
+          <input type="text" id="emp-nama" required placeholder="Contoh: Michael Owen">
+        </div>
+        <div class="form-group">
+          <label for="emp-jabatan">Jabatan *</label>
+          <input type="text" id="emp-jabatan" required placeholder="Contoh: Staff IT / Supervisor HRD / Manager Sales">
+        </div>
+        <div class="form-group">
+          <label for="emp-regional">Regional *</label>
+          <input type="text" id="emp-regional" required placeholder="Contoh: Pusat / Jawa Barat / Jawa Timur">
+        </div>
+        <div class="form-group">
+          <label for="emp-cabang">Cabang / Pusat *</label>
+          <select id="emp-cabang" required>
+            <option value="Pusat">Pusat</option>
+            <option value="Cabang">Cabang</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="emp-status">Status *</label>
+          <select id="emp-status" required>
+            <option value="Aktif">Aktif</option>
+            <option value="Nonaktif">Nonaktif</option>
+          </select>
+        </div>
+        
+        <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem;">
+          <button type="button" class="btn btn-secondary" onclick="closeEmployeeModal()">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan Data</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
